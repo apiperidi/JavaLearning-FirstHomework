@@ -86,6 +86,7 @@ public class FullClassLesson {
 
    interface AddListOfEmployees {
             void addList();
+          //  void asxeto();
     }
 
 
@@ -114,8 +115,19 @@ public class FullClassLesson {
         }
     }
 
+
     public static void readListFromFile()
     {
+        Path directory = Paths.get(filediectory+"Test_txt"+File.separator+"TestList.txt");
+        try (BufferedReader br = Files.newBufferedReader(directory)) {
+            String line = br.readLine();
+            System.out.println(line);
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+
+
+       /* ***
         try (Reader in =new FileReader(filediectory+"Test_txt"+File.separator+"TestList.txt") )
         {
             int character;
@@ -126,7 +138,7 @@ public class FullClassLesson {
         }
         catch (IOException e) {
             e.printStackTrace();
-        }
+        }*/
     }
 
     private static List<String> generateStringNames() {
@@ -156,6 +168,7 @@ public class FullClassLesson {
     }
 
     private static void listSubFiles(File file) {
+
         String[] list = file.list();
         for (int i = 0; i < list.length; i++) {
             File f = new File(filediectory, list[i]);
