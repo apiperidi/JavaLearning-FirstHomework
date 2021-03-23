@@ -20,12 +20,13 @@ import static java.lang.System.exit;
 
 public class DBdemoLogin {
     private static final Logger loggerAng = LoggerFactory.getLogger(DBdemoLogin.class);
-    private static final String DB_URL = "jdbc:h2:mem:sample"; //memory database στο heap| name: sample
+    private static final String DB_URL = "jdbc:h2::sample"; //memory database στο heap| name: sample
+    // private static final String DB_URL = "jdbc:h2:~/sample"; //arxeia sto home directory
     private static final String DB_USERNAME = "sa";
     private static final String DB_PASSWORD = "";
     private final Properties sqlCommands = new Properties(); //η διεύθυνση στην μνήμη που έχει πάρει το object properties
     private final Lorem generator = LoremIpsum.getInstance(); // random names
-    private Server h2Server, webServer;
+    private Server h2Server, webServer; //http://localhost:8082/ kai JDBC url: jdbc:h2:mem:sample
     private HikariDataSource hikariDatasource;
 
 
@@ -41,6 +42,14 @@ public class DBdemoLogin {
         // Register JDBC driver and retrieve a connection
        // Connection connection = demo.registerDatabaseDriver();
         demo.initiateConnectionPooling();
+
+
+     /*   εάν η βάση δεν είναι στο memory
+     if (demo.BooleancreateTable()) {
+            // Insert data
+            demo.insertTableBatchGenerator();
+        }*/
+
 
         // Create table
         demo.createTable();
@@ -58,7 +67,11 @@ public class DBdemoLogin {
 
 
         // Stop H2 database server
-        demo.stopH2Server();
+        // Stop H2 database server via shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> demo.stopH2Server()));
+
+        while (true) {
+        }
     }
 
     private void initiateConnectionPooling() {
@@ -80,9 +93,6 @@ public class DBdemoLogin {
         hikariDatasource = new HikariDataSource(config);
     }
 
-
-
-
     private void loadSqlCommands() {
         try (InputStream inputStream = DBdemo.class.getClassLoader().getResourceAsStream("sql.properties")) {
             System.out.println("ddd");
@@ -98,19 +108,23 @@ public class DBdemoLogin {
     }
 
     private void startH2Server() {
-        try {
+
             //tcpAllowOthers: Να συνδεθούν και άλλοι
             //tcpDaemon : Να σηκωθεί σαν service
+        try {
             h2Server = Server.createTcpServer("-tcpAllowOthers", "-tcpDaemon");
             h2Server.start();
-            System.out.println("H2 Database server is now accepting connections.");
+            webServer = Server.createWebServer("-webAllowOthers", "-webDaemon");
+            webServer.start();
+            loggerAng.info("H2 Database server is now accepting connections.");
         } catch (SQLException throwables) {
-            loggerAng.error("Unable to start H2 database server.",throwables);
+            loggerAng.error("Unable to start H2 database server.", throwables);
             exit(-1);
         }
+        loggerAng.info("H2 server has started with status '{}'.", h2Server.getStatus());
+
+
     }
-
-
 
     private void createTable() {
         try (Statement statement = hikariDatasource.getConnection().createStatement()) {
@@ -125,20 +139,36 @@ exit(-1);
 
     }
 
-    private void stopH2Server() {
-        if (h2Server == null)  // Εάν ο server δεν υπάρχει
-        {
-            return;
-        }
-        if (h2Server.isRunning(true))  //Εάν ο server τρέχει
-        {
-            h2Server.stop();
-            h2Server.shutdown();
-            System.out.println("H2 Database server has been shutdown.");
+    private boolean BooleancreateTable() {
+        try (Statement statement = hikariDatasource.getConnection().createStatement()) {
+            int resultRows = statement.executeUpdate(sqlCommands.getProperty("create.table.REGISTRATION"));
+
+            loggerAng.debug("Statement returned {}.", resultRows);
+            return true;
+        } catch (SQLException throwables) {
+            loggerAng.warn("Unable to create target database table. It already exists.");
+            return false;
         }
     }
 
 
+    private void stopH2Server() {
+
+        if (h2Server == null || webServer == null) { // Εάν ο server δεν υπάρχει
+            return;
+        }
+
+        if (h2Server.isRunning(true)) { //Εάν ο server τρέχει
+            h2Server.stop();
+            h2Server.shutdown();
+        }
+        if (webServer.isRunning(true)) {
+            webServer.stop();
+            webServer.shutdown();
+        }
+        loggerAng.info("H2 Database server has been shutdown.");
+
+    }
 
     private void generateData (PreparedStatement prStatement, int HowMany) throws SQLException {
         for (int i=0; i<HowMany; i++) {
