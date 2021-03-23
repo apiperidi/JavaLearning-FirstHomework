@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static java.lang.System.exit;
 
@@ -18,11 +19,11 @@ public class DBdemo {
     private static final String DB_USERNAME = "sa";
     private static final String DB_PASSWORD = "";
     private final Properties sqlCommands = new Properties(); //η διεύθυνση στην μνήμη που έχει πάρει το object properties
-private final Lorem generator = LoremIpsum.getInstance();
+    private final Lorem generator = LoremIpsum.getInstance(); // random names
     private Server h2Server;
 
 
-    public static void main(String[] args)  {
+    public static void main(String[] args) throws InterruptedException {
         DBdemo demo = new DBdemo();
         // Load SQL commands
         demo.loadSqlCommands();
@@ -33,46 +34,59 @@ private final Lorem generator = LoremIpsum.getInstance();
         Connection connection = demo.registerDatabaseDriver();
 
        //θα θέλει commit
-        enableTrancactionMode(connection);
+        enableTranscactionMode(connection);
 
 
         // Create table
         demo.createTable(connection);
         // Insert Data
-        demo.InsertTable(connection);
-        demo.InsertTableBatch(connection);
-        demo.InsertTableBatchGenerator(connection);
+     //   demo.insertTable(connection);
+     //   demo.insertTableBatch(connection);
+        demo.insertTableBatchGenerator(connection);
         try {
             connection.commit();
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
+
+        demo.commit(connection,true);
         //
         demo.SelectTable(connection);
-        demo.UpdateTable(connection);
+     //   demo.updateTable(connection);
+        demo.deleteTable(connection);
+        demo.commit(connection,false);
         demo.SelectTable(connection);
         // SQL Commands
-        demo.DeleteTable(connection);
+
         //Introduce artificial delay
-        try {
+
             Thread.sleep(3000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+
 
         // Stop H2 database server
         demo.stopH2Server();
     }
 
-    private static void enableTrancactionMode(Connection connection) {
+    private static void enableTranscactionMode(Connection connection) {
         try {
             connection.setAutoCommit(false);  //Εάν βάλω false θα πρέπει να κάνω commit ή rollback
         } catch (SQLException throwables) {
-
             throwables.printStackTrace();
         }
     }
 
+    private void commit(Connection connection, boolean mode) {
+        try {
+            if (mode) {
+                connection.commit();
+            } else {
+                connection.rollback();
+            }
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+
+        }
+    }
 
     private void loadSqlCommands() {
         try (InputStream inputStream = DBdemo.class.getClassLoader().getResourceAsStream("sql.properties")) {
@@ -142,8 +156,7 @@ private final Lorem generator = LoremIpsum.getInstance();
         }
     }
 
-
-    private void InsertTable(Connection connection) {
+    private void insertTable(Connection connection) {
         try (Statement statement = connection.createStatement()) {
             int resultRows=0;
             resultRows  = statement.executeUpdate(sqlCommands.getProperty("insert.table.REGISTRATION"));
@@ -160,7 +173,7 @@ private final Lorem generator = LoremIpsum.getInstance();
 
     }
 
-    private void InsertTableBatch(Connection connection) {
+    private void insertTableBatch(Connection connection) {
         try ( PreparedStatement prStatement = connection.prepareStatement(sqlCommands.getProperty("insertBatch.table.REGISTRATION"))) {
             prStatement.setLong(1,6);
             prStatement.setString(2,"Manos");
@@ -191,12 +204,12 @@ private final Lorem generator = LoremIpsum.getInstance();
             prStatement.setLong(1, 8 + i);
             prStatement.setString(2, generator.getFirstName());
             prStatement.setString(3, generator.getLastName());
-            prStatement.setInt(4, 50);
+            prStatement.setInt(4, ThreadLocalRandom.current().nextInt(18,70));
             prStatement.addBatch();
         }
     }
 
-    private void InsertTableBatchGenerator(Connection connection) {
+    private void insertTableBatchGenerator(Connection connection) {
         try ( PreparedStatement prStatement = connection.prepareStatement(sqlCommands.getProperty("insertBatch.table.REGISTRATION"))) {
 
             generateData(prStatement,10);
@@ -229,7 +242,7 @@ private final Lorem generator = LoremIpsum.getInstance();
 
     }
 
-    private void UpdateTable(Connection connection) {
+    private void updateTable(Connection connection) {
         String query ="Update REGISTRATION set Age =AGE+5 where FIRSTNAME=?";
         try{
             PreparedStatement prStatement = connection.prepareStatement(query);
@@ -245,7 +258,16 @@ private final Lorem generator = LoremIpsum.getInstance();
 
     }
 
-    private void DeleteTable(Connection connection) {
+    private void deleteTable(Connection connection) {
+        try (Statement statement = connection.createStatement()) {
+            int resultRows = statement.executeUpdate(sqlCommands.getProperty("delete.table.REGISTRATION"));
+
+            System.out.println("Statement Delete " + resultRows);
+
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+            System.err.println("Error occurred while deleting data");
+        }
     }
 
 
